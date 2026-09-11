@@ -32,6 +32,7 @@
       body {
         margin: 0;
         padding: 0;
+        scroll-behavior: smooth;
       }
       body {
         background: var(--paper);
@@ -1278,6 +1279,62 @@
         placesGrid.appendChild(card);
       });
 
+      /* ---------------- SMOOTH MOUSE-WHEEL SCROLL ---------------- */
+      (function () {
+        let currentScroll = window.scrollY;
+        let targetScroll = window.scrollY;
+        let ticking = false;
+        const ease = 0.09;
+
+        function maxScroll() {
+          return Math.max(
+            0,
+            document.documentElement.scrollHeight - window.innerHeight,
+          );
+        }
+
+        window.addEventListener(
+          "wheel",
+          (e) => {
+            // Let the 3D viewer handle its own wheel-to-zoom behavior untouched
+            if (e.target.closest("#canvas-host")) return;
+
+            e.preventDefault();
+            targetScroll += e.deltaY;
+            targetScroll = Math.max(0, Math.min(targetScroll, maxScroll()));
+
+            if (!ticking) {
+              ticking = true;
+              requestAnimationFrame(step);
+            }
+          },
+          { passive: false },
+        );
+
+        function step() {
+          currentScroll += (targetScroll - currentScroll) * ease;
+          if (Math.abs(targetScroll - currentScroll) < 0.4) {
+            currentScroll = targetScroll;
+            window.scrollTo(0, currentScroll);
+            ticking = false;
+            return;
+          }
+          window.scrollTo(0, currentScroll);
+          requestAnimationFrame(step);
+        }
+
+        // keep in sync when the page scrolls via other means (nav links, keyboard, resize)
+        window.addEventListener("scroll", () => {
+          if (!ticking) {
+            currentScroll = window.scrollY;
+            targetScroll = window.scrollY;
+          }
+        });
+        window.addEventListener("resize", () => {
+          targetScroll = Math.min(targetScroll, maxScroll());
+        });
+      })();
+
       /* ---------------- MOBILE MENU ---------------- */
       const menuBtn = document.getElementById("menuBtn");
       const mobileMenu = document.getElementById("mobileMenu");
@@ -1286,6 +1343,26 @@
       });
 
       /* ---------------- SMOOTH SCROLL NAV ---------------- */
+      function easeInOutCubic(t) {
+        return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+      }
+      function smoothScrollTo(targetY, duration = 900) {
+        const startY = window.scrollY;
+        const diff = targetY - startY;
+        const startTime = performance.now();
+
+        function frame(now) {
+          const elapsed = now - startTime;
+          const progress = Math.min(elapsed / duration, 1);
+          const eased = easeInOutCubic(progress);
+          window.scrollTo(0, startY + diff * eased);
+          if (progress < 1) {
+            requestAnimationFrame(frame);
+          }
+        }
+        requestAnimationFrame(frame);
+      }
+
       document
         .querySelectorAll(".nav-links a, .mobile-menu a")
         .forEach((link) => {
@@ -1294,7 +1371,10 @@
             if (target) {
               e.preventDefault();
               mobileMenu.classList.remove("open");
-              target.scrollIntoView({ behavior: "smooth" });
+              const navHeight = 76;
+              const targetY =
+                target.getBoundingClientRect().top + window.scrollY - navHeight;
+              smoothScrollTo(targetY, 950);
             }
           });
         });
